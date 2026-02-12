@@ -36,26 +36,46 @@ function handleScan(qrId){
 }
 
 // initialize scanner
-const html5QrCode = new Html5Qrcode("reader");
-Html5Qrcode.getCameras().then(cameras=>{
-  if(cameras && cameras.length){
-    const cameraId = cameras[0].id;
-    html5QrCode.start(cameraId, {fps:10, qrbox:250}, qrCodeMessage=>{
-      // stop for a moment to prevent double reads
-      html5QrCode.pause(true);
-      const id = qrCodeMessage.trim();
-      handleScan(id);
-      // dispatch a custom event so the UI can react (last-scanned, animations)
-      try{window.dispatchEvent(new CustomEvent('qr-scanned',{detail:{id}}))}catch(e){}
-      // flash reader briefly
-      const readerEl = document.getElementById('reader');
-      if(readerEl){readerEl.classList.add('scanned'); setTimeout(()=>readerEl.classList.remove('scanned'),700)}
-      setTimeout(()=>html5QrCode.resume(), 1500);
-    }, errorMessage=>{
-      // ignore
-    }).catch(err=>setStatus('Scanner start failed: '+err));
-  } else setStatus('No camera found');
-}).catch(err=>setStatus('Camera error: '+err));
+const html5QrCode = (window.Html5Qrcode) ? new Html5Qrcode("reader") : null;
+
+if(!html5QrCode){
+  setStatus('Scanner library not loaded');
+} else {
+  Html5Qrcode.getCameras().then(cameras=>{
+    console.log('cameras', cameras);
+    if(cameras && cameras.length){
+      setStatus(`Found ${cameras.length} camera(s)`);
+      // Prefer environment/back camera when available
+      let cameraId = cameras.find(c=>/back|rear|environment/i.test(c.label))?.id || cameras[0].id;
+
+      const startScanner = (device) => html5QrCode.start(device, {fps:10, qrbox:250}, qrCodeMessage=>{
+        html5QrCode.pause(true);
+        const id = qrCodeMessage.trim();
+        handleScan(id);
+        try{window.dispatchEvent(new CustomEvent('qr-scanned',{detail:{id}}))}catch(e){}
+        const readerEl = document.getElementById('reader');
+        if(readerEl){readerEl.classList.add('scanned'); setTimeout(()=>readerEl.classList.remove('scanned'),700)}
+        setTimeout(()=>html5QrCode.resume(), 1500);
+      }, errorMessage=>{
+        // log per-frame decode errors
+        console.debug('scan error', errorMessage);
+      });
+
+      // Try device id first, then facingMode fallback
+      startScanner({deviceId: {exact: cameraId}}).catch(err=>{
+        console.warn('start with deviceId failed, trying facingMode fallback', err);
+        // try using facingMode environment
+        startScanner({facingMode: {exact: 'environment'}}).catch(err2=>{
+          console.error('all scanner starts failed', err2);
+          setStatus('Scanner start failed: ' + err2);
+        });
+      });
+    } else setStatus('No camera found');
+  }).catch(err=>{
+    console.error('getCameras error', err);
+    setStatus('Camera error: '+err);
+  });
+}
 
 regForm.addEventListener('submit', function(e){
   e.preventDefault();
