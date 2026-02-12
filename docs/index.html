@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>QR Attendance — Church MIS (Prototype)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+  <style>
+    :root{
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --muted:#6b7280;
+      --accent:#0f766e;
+      --accent-2:#06b6d4;
+      --glass: rgba(255,255,255,0.6);
+      --radius:12px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;min-height:100%;font-family:Inter,system-ui,Segoe UI,Roboto,-apple-system,Arial,sans-serif;background:linear-gradient(180deg,var(--bg),#ffffff);color:#0f172a;padding:1.25rem;
+      -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    }
+    header{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;box-shadow:0 6px 18px rgba(15,118,110,0.18)}
+    h1{font-size:1.125rem;margin:0}
+    p.lead{margin:0;color:var(--muted);font-size:.95rem}
+
+    main{display:grid;grid-template-columns:1fr 360px;gap:1rem;align-items:start}
+    @media(max-width:920px){main{grid-template-columns:1fr}}
+
+    .card{background:var(--card);border-radius:var(--radius);padding:1rem;box-shadow:0 6px 18px rgba(2,6,23,0.06);border:1px solid rgba(15,23,42,0.04)}
+
+    /* Scanner area */
+    .scanner{display:flex;flex-direction:column;gap:.75rem}
+    #reader{width:100%;max-width:640px;height:360px;border-radius:10px;overflow:hidden;background:linear-gradient(180deg,#eef2ff,#fff);display:flex;align-items:center;justify-content:center;border:2px dashed rgba(15,118,110,0.06)}
+    #reader .placeholder{color:var(--muted)}
+
+    /* scan animation */
+    #reader{position:relative;transition:box-shadow .25s ease,transform .18s ease}
+    #reader::after{content:'';position:absolute;left:0;right:0;height:3px;top:50%;transform:translateY(-50%);background:linear-gradient(90deg,transparent,rgba(6,182,212,0.35),transparent);opacity:0;pointer-events:none}
+    #reader.scanning::after{animation:scan 1.2s linear infinite;opacity:1}
+    @keyframes scan{0%{transform:translateX(-110%) translateY(-50%)}50%{transform:translateX(0) translateY(-50%)}100%{transform:translateX(110%) translateY(-50%)}}
+    #reader.scanned{box-shadow:0 12px 36px rgba(6,182,212,0.12);transform:scale(.995)}
+
+    .status{padding:.75rem;border-radius:10px;background:linear-gradient(90deg,rgba(6,182,212,0.06),rgba(15,118,110,0.03));color:var(--accent);font-weight:600}
+
+    /* Right column */
+    .side{display:flex;flex-direction:column;gap:1rem}
+    .panel{padding:1rem;border-radius:10px;background:linear-gradient(180deg,var(--card),#fbfdff);border:1px solid rgba(2,6,23,0.04)}
+
+    label{display:block;margin-top:.5rem;color:#111827}
+    input[type=text],input[type=date],select{width:100%;padding:.5rem;border-radius:8px;border:1px solid #e6eef6;background:#fbfdff}
+    input[type=checkbox]{transform:scale(1.05);margin-left:.35rem}
+
+    button{background:var(--accent);color:white;padding:.6rem .9rem;border-radius:8px;border:0;font-weight:600;cursor:pointer}
+    .btn-ghost{background:transparent;color:var(--accent);border:1px solid rgba(15,118,110,0.08)}
+
+    .muted{color:var(--muted);font-size:.95rem}
+    .small{font-size:.85rem}
+
+    footer{margin-top:1rem;color:var(--muted);font-size:.85rem}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">QR</div>
+    <div>
+      <h1>QR Attendance — Church MIS (Prototype)</h1>
+      <p class="lead">Scan a member's QR code to check them in or register them quickly.</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="card scanner">
+      <div id="reader">
+        <div class="placeholder">Camera preview will appear here.</div>
+      </div>
+      <div id="status" class="status small">Scanner idle.</div>
+      <div class="muted small">Tip: Allow camera access and position the QR code inside the preview box.</div>
+    </section>
+
+    <aside class="side">
+      <div id="checkinPanel" class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong>Check-In</strong>
+          <button id="toggleRegister" class="btn-ghost small">Register New</button>
+        </div>
+        <div id="lastSeen" class="small muted" style="margin-top:.5rem">No recent scans.</div>
+      </div>
+
+      <div id="registerPanel" class="panel" style="display:none">
+        <h3 style="margin-top:0;margin-bottom:.25rem">Register New Member</h3>
+        <form id="registerForm">
+          <input type="hidden" id="reg_qr" name="qrId">
+          <label>Name <input type="text" id="name" required></label>
+          <label>Birthday <input type="date" id="birthday"></label>
+          <label>Gender <select id="gender"><option></option><option>Male</option><option>Female</option><option>Other</option></select></label>
+          <label>Address <input type="text" id="address"></label>
+          <label>Contact <input type="text" id="contact"></input></label>
+          <label style="margin-top:.5rem"><input type="checkbox" id="worker"> Worker?</label>
+          <label>Ministry <input type="text" id="ministry"></label>
+          <div style="display:flex;gap:.5rem;margin-top:.75rem">
+            <button type="submit">Register & Check In</button>
+            <button type="button" id="cancelRegister" class="btn-ghost">Cancel</button>
+          </div>
+        </form>
+        <div id="regResult" class="small muted" style="margin-top:.5rem"></div>
+      </div>
+
+      <div class="panel small muted">
+        <strong>Notes</strong>
+        <div style="margin-top:.5rem">This is a prototype UI—data flows to the back-end handled by the script.</div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    Built for quick church attendance. Prototype only.
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const toggle = document.getElementById('toggleRegister');
+      const reg = document.getElementById('registerPanel');
+      const cancel = document.getElementById('cancelRegister');
+      const lastSeen = document.getElementById('lastSeen');
+
+      toggle.addEventListener('click', ()=>{reg.style.display = reg.style.display === 'none' ? 'block' : 'none'});
+      cancel.addEventListener('click', ()=>{reg.style.display='none'});
+
+      // Small helper to display last scanned id if app.js triggers a custom event
+      window.addEventListener('qr-scanned', (e)=>{
+        const id = e.detail && e.detail.id ? e.detail.id : '—';
+        lastSeen.textContent = `Last scanned: ${id} — ${new Date().toLocaleTimeString()}`;
+        const reader = document.getElementById('reader');
+        reader.classList.add('scanned');
+        setTimeout(()=>reader.classList.remove('scanned'), 700);
+      });
+    });
+  </script>
+
+  <script src="app.js"></script>
+</body>
+</html>
