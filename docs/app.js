@@ -36,10 +36,10 @@ function handleScan(qrId){
 }
 
 // initialize scanner
-const html5QrCode = (window.Html5Qrcode) ? new Html5Qrcode("reader") : null;
+const html5QrCode = (typeof window.Html5Qrcode !== 'undefined') ? new window.Html5Qrcode("reader") : null;
 
 if(!html5QrCode){
-  setStatus('Scanner library not loaded');
+  setStatus('Scanner library not loaded — check network or script tag');
 } else {
   Html5Qrcode.getCameras().then(cameras=>{
     console.log('cameras', cameras);
